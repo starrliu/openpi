@@ -12,6 +12,7 @@ import numpy as np
 import torch
 
 import openpi.models.model as _model
+from openpi.training.agibot_dataset import AgibotDataset
 import openpi.training.config as _config
 from openpi.training.droid_rlds_dataset import DroidRldsDataset
 import openpi.transforms as _transforms
@@ -128,9 +129,16 @@ class FakeDataset(Dataset):
 
 
 def create_torch_dataset(
-    data_config: _config.DataConfig, action_horizon: int, model_config: _model.BaseModelConfig
+    data_config: _config.DataConfig,
+    action_horizon: int,
+    model_config: _model.BaseModelConfig,
+    *,
+    load_images: bool = True,
 ) -> Dataset:
     """Create a dataset for training."""
+    if data_config.agibot_dataset is not None:
+        return AgibotDataset(data_config.agibot_dataset, action_horizon, load_images=load_images)
+
     repo_id = data_config.repo_id
     if repo_id is None:
         raise ValueError("Repo ID is not set. Cannot create dataset.")
@@ -393,6 +401,7 @@ class TorchDataLoader:
         num_workers: int = 0,
         seed: int = 0,
         framework: str = "jax",
+        drop_last: bool = True,
     ):
         """Create a PyTorch data loader.
 
@@ -408,6 +417,7 @@ class TorchDataLoader:
             num_workers: The number of worker processes to use. If zero, the data loader will
                 execute in the main process.
             seed: The seed to use for shuffling the data.
+            drop_last: Whether to drop a final incomplete batch.
         """
         if jax.process_count() > 1:
             raise NotImplementedError("Data loading with multiple processes is not supported.")
@@ -441,7 +451,7 @@ class TorchDataLoader:
             persistent_workers=num_workers > 0,
             collate_fn=_collate_fn,
             worker_init_fn=_worker_init_fn,
-            drop_last=True,
+            drop_last=drop_last,
             generator=generator,
         )
 

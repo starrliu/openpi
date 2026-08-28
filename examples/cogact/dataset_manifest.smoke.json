@@ -1,0 +1,20 @@
+{
+  "dataset_root": "/data/cogact_dataset",
+  "datasets": [
+    {
+      "dataset_folder": "cogact_pickplace_combined_20260730_161821_split_500_240h",
+      "metadata_file": "episodic_dataset_20260730_235631.npy",
+      "weight": 1.0
+    },
+    {
+      "dataset_folder": "cogact_pickplace_combined_20260730_214315_split_500_240h",
+      "metadata_file": "episodic_dataset_20260730_235736.npy",
+      "weight": 1.0
+    },
+    {
+      "dataset_folder": "cogact_supermarket_combined_20260730_194207_split_500_240h",
+      "metadata_file": "episodic_dataset_20260731_002223.npy",
+      "weight": 1.0
+    }
+  ]
+}

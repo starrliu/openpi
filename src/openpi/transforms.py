@@ -136,13 +136,13 @@ class Normalize(DataTransformFn):
 
     def _normalize(self, x, stats: NormStats):
         mean, std = stats.mean[..., : x.shape[-1]], stats.std[..., : x.shape[-1]]
-        return (x - mean) / (std + 1e-6)
+        return ((x - mean) / (std + 1e-6)).astype(x.dtype)
 
     def _normalize_quantile(self, x, stats: NormStats):
         assert stats.q01 is not None
         assert stats.q99 is not None
         q01, q99 = stats.q01[..., : x.shape[-1]], stats.q99[..., : x.shape[-1]]
-        return (x - q01) / (q99 - q01 + 1e-6) * 2.0 - 1.0
+        return ((x - q01) / (q99 - q01 + 1e-6) * 2.0 - 1.0).astype(x.dtype)
 
 
 @dataclasses.dataclass(frozen=True)

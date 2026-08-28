@@ -17,11 +17,13 @@ import openpi.models.model as _model
 import openpi.models.pi0_config as pi0_config
 import openpi.models.pi0_fast as pi0_fast
 import openpi.models.tokenizer as _tokenizer
+import openpi.policies.agibot_policy as agibot_policy
 import openpi.policies.aloha_policy as aloha_policy
 import openpi.policies.droid_policy as droid_policy
 import openpi.policies.libero_policy as libero_policy
 import openpi.shared.download as _download
 import openpi.shared.normalize as _normalize
+import openpi.training.agibot_dataset as _agibot_dataset
 import openpi.training.droid_rlds_dataset as droid_rlds_dataset
 import openpi.training.misc.polaris_config as polaris_config
 import openpi.training.misc.roboarena_config as roboarena_config
@@ -63,7 +65,7 @@ class AssetsConfig:
 
 @dataclasses.dataclass(frozen=True)
 class DataConfig:
-    # LeRobot repo id. If None, fake data will be created.
+    # Dataset/asset id. For the standard path this is a LeRobot repo id.
     repo_id: str | None = None
     # Directory within the assets directory containing the data assets.
     asset_id: str | None = None
@@ -96,6 +98,9 @@ class DataConfig:
     action_space: droid_rlds_dataset.DroidActionSpace | None = None
     # List of datasets to sample from: name, version, weight, and optionally filter_dict_path
     datasets: Sequence[droid_rlds_dataset.RLDSDataset] = ()
+
+    # Native CogACT AGIBot dataset. When set, it takes precedence over repo_id-based LeRobot loading.
+    agibot_dataset: _agibot_dataset.AgibotDatasetConfig | None = None
 
 
 class GroupFactory(Protocol):
@@ -275,6 +280,52 @@ class LeRobotAlohaDataConfig(DataConfigFactory):
             data_transforms=data_transforms,
             model_transforms=model_transforms,
             action_sequence_keys=self.action_sequence_keys,
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class CogActAgibotDataConfig(DataConfigFactory):
+    """Native data config for a manifest-defined CogACT AGIBot mixture."""
+
+    repo_id: str = "cogact_all_v5"
+    # JSON manifest containing dataset_root and the list of dataset_folder/metadata_file entries.
+    dataset_manifest: str | None = "configs/cogact/cogact_all_v5.json"
+    # Optional override for dataset_root from the manifest.
+    dataset_root: str | None = None
+    action_source: str = "actions_cmd"
+    image_drop_strategy: Literal["none", "balanced_5way"] = "balanced_5way"
+    extrinsic_index_mode: Literal["global", "legacy_local"] = "legacy_local"
+    terminal_repeat_valid_steps: int = 3
+
+    @override
+    def create(self, assets_dirs: pathlib.Path, model_config: _model.BaseModelConfig) -> DataConfig:
+        if model_config.model_type != ModelType.PI05:
+            raise ValueError("The CogACT baseline is configured for pi0.5")
+        if model_config.action_dim != 32:
+            raise ValueError(f"The CogACT baseline requires action_dim=32, got {model_config.action_dim}")
+
+        if self.dataset_manifest is None:
+            raise ValueError("CogACT requires a dataset manifest; pass --data.dataset-manifest=/path/to/manifest.json")
+        native_config = dataclasses.replace(
+            _agibot_dataset.load_agibot_dataset_manifest(
+                self.dataset_manifest,
+                dataset_root=self.dataset_root,
+            ),
+            action_source=self.action_source,
+            image_drop_strategy=self.image_drop_strategy,
+            extrinsic_index_mode=self.extrinsic_index_mode,
+            terminal_repeat_valid_steps=self.terminal_repeat_valid_steps,
+        )
+        return dataclasses.replace(
+            self.create_base_config(assets_dirs, model_config),
+            agibot_dataset=native_config,
+            data_transforms=_transforms.Group(
+                inputs=[agibot_policy.AgibotInputs()],
+                outputs=[agibot_policy.AgibotOutputs()],
+            ),
+            model_transforms=ModelTransformFactory()(model_config),
+            # pi0.5 discretizes normalized state into [-1, 1] bins.
+            use_quantile_norm=True,
         )
 
 
@@ -759,6 +810,18 @@ _CONFIGS = [
         ema_decay=0.999,
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         pytorch_weight_path="/path/to/your/pytorch_weight_path",
+        num_train_steps=30_000,
+    ),
+    TrainConfig(
+        name="pi05_cogact_baseline",
+        model=pi0_config.Pi0Config(pi05=True, action_dim=32, action_horizon=30),
+        data=CogActAgibotDataConfig(),
+        weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
+        # Convert the official checkpoint with examples/convert_jax_model_to_pytorch.py before training.
+        pytorch_weight_path="./checkpoints/pi05_base_pytorch",
+        ema_decay=None,
+        batch_size=32,
+        num_workers=4,
         num_train_steps=30_000,
     ),
     #

@@ -45,6 +45,7 @@ import openpi.models_pytorch.pi0_pytorch
 import openpi.shared.normalize as _normalize
 import openpi.training.config as _config
 import openpi.training.data_loader as _data
+from openpi.training.losses import masked_mean
 
 
 def init_logging():
@@ -533,7 +534,7 @@ def train_loop(config: _config.TrainConfig):
             elif not isinstance(losses, torch.Tensor):
                 losses = torch.tensor(losses, device=device, dtype=torch.float32)
 
-            loss = losses.mean()
+            loss = masked_mean(losses, observation.action_loss_mask)
 
             # Backward pass
             loss.backward()

@@ -23,6 +23,16 @@ def test_torch_data_loader():
         assert all(x.shape[0] == 4 for x in jax.tree.leaves(batch))
 
 
+def test_torch_data_loader_keeps_partial_batch_when_requested():
+    config = pi0_config.Pi0Config(action_dim=24, action_horizon=50, max_token_len=48)
+    dataset = _data_loader.FakeDataset(config, 5)
+
+    loader = _data_loader.TorchDataLoader(dataset, local_batch_size=4, num_batches=2, drop_last=False)
+    batches = list(loader)
+
+    assert [batch["actions"].shape[0] for batch in batches] == [4, 1]
+
+
 def test_torch_data_loader_infinite():
     config = pi0_config.Pi0Config(action_dim=24, action_horizon=50, max_token_len=48)
     dataset = _data_loader.FakeDataset(config, 4)

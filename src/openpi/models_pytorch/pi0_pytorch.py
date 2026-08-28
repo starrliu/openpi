@@ -316,6 +316,7 @@ class PI0Pytorch(nn.Module):
 
     def forward(self, observation, actions, noise=None, time=None) -> Tensor:
         """Do a full training forward pass and compute the loss (batch_size x num_steps x num_motors)"""
+        action_loss_mask = observation.action_loss_mask
         images, img_masks, lang_tokens, lang_masks, state = self._preprocess_observation(observation, train=True)
 
         if noise is None:
@@ -327,6 +328,13 @@ class PI0Pytorch(nn.Module):
         time_expanded = time[:, None, None]
         x_t = time_expanded * noise + (1 - time_expanded) * actions
         u_t = noise - actions
+        if action_loss_mask is not None:
+            if action_loss_mask.shape != actions.shape:
+                raise ValueError(
+                    f"action_loss_mask shape {action_loss_mask.shape} does not match actions shape {actions.shape}"
+                )
+            # Match CogACT's behavior of hiding invalid tail and unused action dimensions from the denoiser input.
+            x_t = x_t * action_loss_mask.to(dtype=x_t.dtype)
 
         prefix_embs, prefix_pad_masks, prefix_att_masks = self.embed_prefix(images, img_masks, lang_tokens, lang_masks)
         suffix_embs, suffix_pad_masks, suffix_att_masks, adarms_cond = self.embed_suffix(state, x_t, time)

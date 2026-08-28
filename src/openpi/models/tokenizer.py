@@ -45,7 +45,7 @@ class PaligemmaTokenizer:
             tokens = tokens[: self._max_len]
             mask = [True] * self._max_len
 
-        return np.asarray(tokens), np.asarray(mask)
+        return np.asarray(tokens, dtype=np.int32), np.asarray(mask, dtype=bool)
 
 
 class FASTTokenizer:
