@@ -814,15 +814,22 @@ _CONFIGS = [
     ),
     TrainConfig(
         name="pi05_cogact_baseline",
+        project_name="openpi_cogact_baseline",
         model=pi0_config.Pi0Config(pi05=True, action_dim=32, action_horizon=30),
         data=CogActAgibotDataConfig(),
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         # Convert the official checkpoint with examples/convert_jax_model_to_pytorch.py before training.
         pytorch_weight_path="./checkpoints/pi05_base_pytorch",
         ema_decay=None,
-        batch_size=32,
+        batch_size=512,
         num_workers=4,
-        num_train_steps=30_000,
+        num_train_steps=100_000,
+        lr_schedule=_optimizer.CosineDecaySchedule(
+            warmup_steps=1_000,
+            peak_lr=2.5e-5,
+            decay_steps=100_000,
+            decay_lr=2.5e-6,
+        ),
     ),
     #
     # Fine-tuning Aloha configs.
