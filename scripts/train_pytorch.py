@@ -24,6 +24,7 @@ Multi-Node Training:
 """
 
 import dataclasses
+import datetime
 import gc
 import logging
 import os
@@ -97,7 +98,11 @@ def setup_ddp():
     use_ddp = world_size > 1
     if use_ddp and not torch.distributed.is_initialized():
         backend = "nccl" if torch.cuda.is_available() else "gloo"
-        torch.distributed.init_process_group(backend=backend, init_method="env://")
+        torch.distributed.init_process_group(
+            backend=backend,
+            init_method="env://",
+            timeout=datetime.timedelta(minutes=120),
+        )
 
         # Set up debugging environment variables for DDP issues
         if os.environ.get("TORCH_DISTRIBUTED_DEBUG") is None:
@@ -362,7 +367,7 @@ def train_loop(config: _config.TrainConfig):
     loader, data_config = build_datasets(config)
 
     # Log sample images to wandb on first batch
-    if is_main and config.wandb_enabled and not resuming:
+    if is_main and config.wandb_enabled and not resuming and not use_ddp:
         # Create a separate data loader for sample batch to avoid consuming the main loader
         sample_data_loader = _data.create_data_loader(config, framework="pytorch", shuffle=False)
         sample_batch = next(iter(sample_data_loader))
