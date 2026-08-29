@@ -49,6 +49,24 @@ def sample_beta(alpha, beta, bsize, device):
     return dist.sample((bsize,))
 
 
+def embed_image_with_mask(embed_image, image: Tensor, image_mask: Tensor) -> Tensor:
+    """Embed only valid images and scatter them back into the fixed camera batch."""
+    if image_mask.ndim != 1 or image_mask.shape[0] != image.shape[0]:
+        raise ValueError(f"Expected image mask shape ({image.shape[0]},), got {image_mask.shape}")
+    valid_indices = torch.nonzero(image_mask.to(dtype=torch.bool), as_tuple=False).flatten()
+    if len(valid_indices) == image.shape[0]:
+        return embed_image(image)
+    if len(valid_indices) > 0:
+        valid_embeddings = embed_image(image.index_select(0, valid_indices))
+        return valid_embeddings.new_zeros((image.shape[0], *valid_embeddings.shape[1:])).index_copy(
+            0, valid_indices, valid_embeddings
+        )
+
+    # Keep shape inference and a zero-valued autograd path without encoding the full dropped batch.
+    prototype = embed_image(image[:1])
+    return prototype.new_zeros((image.shape[0], *prototype.shape[1:])) + prototype.sum() * 0
+
+
 def make_att_2d_masks(pad_masks, att_masks):
     """Copied from big_vision.
 
@@ -197,10 +215,10 @@ class PI0Pytorch(nn.Module):
         # Process images
         for img, img_mask in zip(images, img_masks, strict=True):
 
-            def image_embed_func(img):
-                return self.paligemma_with_expert.embed_image(img)
+            def image_embed_func(img, img_mask):
+                return embed_image_with_mask(self.paligemma_with_expert.embed_image, img, img_mask)
 
-            img_emb = self._apply_checkpoint(image_embed_func, img)
+            img_emb = self._apply_checkpoint(image_embed_func, img, img_mask)
 
             bsize, num_img_embs = img_emb.shape[:2]
 
