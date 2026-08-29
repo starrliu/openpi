@@ -329,19 +329,21 @@ def train_loop(config: _config.TrainConfig):
                 raise FileNotFoundError(f"No valid checkpoints found in {exp_checkpoint_dir} for resume")
         else:
             raise FileNotFoundError(f"Experiment checkpoint directory {exp_checkpoint_dir} does not exist for resume")
-    elif config.overwrite and config.checkpoint_dir.exists():
+    elif config.overwrite and is_main and config.checkpoint_dir.exists():
         shutil.rmtree(config.checkpoint_dir)
         logging.info(f"Overwriting checkpoint directory: {config.checkpoint_dir}")
 
-    # Create checkpoint directory with experiment name
+    # Only rank zero mutates the shared checkpoint directory. Without this guard,
+    # DDP ranks race while deleting/creating the same path during --overwrite.
     if not resuming:
-        # For new runs, create experiment-specific checkpoint directory
-        exp_checkpoint_dir = config.checkpoint_dir
-        exp_checkpoint_dir.mkdir(parents=True, exist_ok=True)
-        logging.info(f"Created experiment checkpoint directory: {exp_checkpoint_dir}")
-    else:
-        # For resume, checkpoint_dir is already set to the experiment directory
+        if is_main:
+            exp_checkpoint_dir = config.checkpoint_dir
+            exp_checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            logging.info(f"Created experiment checkpoint directory: {exp_checkpoint_dir}")
+    elif is_main:
         logging.info(f"Using existing experiment checkpoint directory: {config.checkpoint_dir}")
+    if use_ddp:
+        dist.barrier()
 
     # Initialize wandb (only on main process)
     if is_main:
