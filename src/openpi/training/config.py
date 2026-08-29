@@ -537,6 +537,8 @@ class TrainConfig:
     pytorch_training_precision: Literal["bfloat16", "float32"] = "bfloat16"
     # Trade compute for activation memory in the PyTorch model.
     enable_gradient_checkpointing: bool = True
+    # Checkpoint only the joint PaliGemma/action-expert transformer layers.
+    enable_joint_gradient_checkpointing: bool = False
 
     lr_schedule: _optimizer.LRScheduleConfig = dataclasses.field(default_factory=_optimizer.CosineDecaySchedule)
     optimizer: _optimizer.OptimizerConfig = dataclasses.field(default_factory=_optimizer.AdamW)
@@ -823,6 +825,7 @@ _CONFIGS = [
         # Convert the official checkpoint with examples/convert_jax_model_to_pytorch.py before training.
         pytorch_weight_path="./checkpoints/pi05_base_pytorch",
         enable_gradient_checkpointing=False,
+        enable_joint_gradient_checkpointing=True,
         ema_decay=None,
         batch_size=512,
         num_workers=0,

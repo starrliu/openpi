@@ -421,9 +421,12 @@ def train_loop(config: _config.TrainConfig):
     )
     if enable_gradient_checkpointing:
         model.gradient_checkpointing_enable()
-        logging.info("Enabled gradient checkpointing for memory optimization")
+        logging.info("Enabled full gradient checkpointing for memory optimization")
     elif config.enable_gradient_checkpointing:
         logging.info("Gradient checkpointing is not supported for this model")
+    elif config.enable_joint_gradient_checkpointing and hasattr(model, "joint_gradient_checkpointing_enable"):
+        model.joint_gradient_checkpointing_enable()
+        logging.info("Enabled joint transformer gradient checkpointing")
     else:
         logging.info("Gradient checkpointing is disabled by config")
 
@@ -500,7 +503,11 @@ def train_loop(config: _config.TrainConfig):
         logging.info(
             f"Training config: batch_size={config.batch_size}, effective_batch_size={effective_batch_size}, num_train_steps={config.num_train_steps}"
         )
-        logging.info(f"Memory optimizations: gradient_checkpointing={enable_gradient_checkpointing}")
+        logging.info(
+            "Memory optimizations: full_gradient_checkpointing=%s, joint_gradient_checkpointing=%s",
+            enable_gradient_checkpointing,
+            config.enable_joint_gradient_checkpointing,
+        )
         logging.info(
             f"LR schedule: warmup={warmup_steps}, peak_lr={peak_lr:.2e}, decay_steps={decay_steps}, end_lr={end_lr:.2e}"
         )

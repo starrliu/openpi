@@ -151,6 +151,11 @@ class PI0Pytorch(nn.Module):
 
         logging.info("Enabled gradient checkpointing for PI0Pytorch model")
 
+    def joint_gradient_checkpointing_enable(self):
+        """Checkpoint the joint PaliGemma/action-expert layers, but not the vision tower."""
+        self.paligemma_with_expert.gemma_expert.model.gradient_checkpointing = True
+        logging.info("Enabled joint transformer gradient checkpointing for PI0Pytorch model")
+
     def gradient_checkpointing_disable(self):
         """Disable gradient checkpointing."""
         self.gradient_checkpointing_enabled = False
