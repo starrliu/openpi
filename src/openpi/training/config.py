@@ -822,6 +822,7 @@ _CONFIGS = [
         weight_loader=weight_loaders.CheckpointWeightLoader("gs://openpi-assets/checkpoints/pi05_base/params"),
         # Convert the official checkpoint with examples/convert_jax_model_to_pytorch.py before training.
         pytorch_weight_path="./checkpoints/pi05_base_pytorch",
+        enable_gradient_checkpointing=False,
         ema_decay=None,
         batch_size=512,
         num_workers=4,
